@@ -4,13 +4,12 @@ import React, { useEffect, useRef } from 'react'
 import cn from 'classnames'
 import { useTranslation } from 'react-i18next'
 import Textarea from 'rc-textarea'
-import s from './style.module.css'
+import { ArrowUpIcon, BoltIcon, ChatBubbleLeftIcon, CircleStackIcon, SparklesIcon } from '@heroicons/react/24/outline'
 import Answer from './answer'
 import Question from './question'
 import type { FeedbackFunc } from './type'
 import type { ChatItem, VisionFile, VisionSettings } from '@/types/app'
 import { TransferMethod } from '@/types/app'
-import Tooltip from '@/app/components/base/tooltip'
 import Toast from '@/app/components/base/toast'
 import ChatImageUploader from '@/app/components/base/image-uploader/chat-image-uploader'
 import ImageList from '@/app/components/base/image-uploader/image-list'
@@ -148,9 +147,17 @@ const Chat: FC<IChatProps> = ({
   }
 
   return (
-    <div className={cn(!feedbackDisabled && 'px-3.5', 'h-full')}>
+    <div className={cn('knowledge-chat', !feedbackDisabled && 'px-3.5')}>
+      {!chatList.some(item => !item.isAnswer) && <section className='knowledge-welcome'>
+        <div className='knowledge-welcome-icon'><SparklesIcon /></div>
+        <h2>知识问答</h2>
+        <p>从知识库里寻找答案，让每一个问题都有据可依。<br />清晰解答，帮助你更快找到所需信息。</p>
+        <div className='knowledge-suggestions'>
+          {['这个知识库主要包含哪些方面的内容？', '帮我梳理一下相关的流程和注意事项', '有哪些容易踩坑的细节？'].map(question => <button key={question} disabled={isResponding} onClick={() => suggestionClick(question)}><ChatBubbleLeftIcon /><span>{question}</span></button>)}
+        </div>
+      </section>}
       {/* Chat List */}
-      <div className="h-full space-y-[30px]">
+      <div className="knowledge-messages space-y-[30px]">
         {chatList.map((item) => {
           if (item.isAnswer) {
             const isLast = item.id === chatList[chatList.length - 1].id
@@ -176,8 +183,9 @@ const Chat: FC<IChatProps> = ({
       </div>
       {
         !isHideSendInput && (
-          <div className='fixed z-10 bottom-0 left-1/2 transform -translate-x-1/2 pc:ml-[122px] tablet:ml-[96px] mobile:ml-0 pc:w-[794px] tablet:w-[794px] max-w-full mobile:w-full px-3.5'>
-            <div className='p-[5.5px] max-h-[150px] bg-white border-[1.5px] border-gray-200 rounded-xl overflow-y-auto'>
+          <div className='knowledge-composer-wrap'>
+            <div className='knowledge-composer'>
+              <div className='knowledge-scope'><CircleStackIcon /><span>检索范围</span><strong>当前应用关联的知识库</strong></div>
               {
                 visionConfig?.enabled && (
                   <>
@@ -217,26 +225,19 @@ const Chat: FC<IChatProps> = ({
                   block w-full px-2 pr-[118px] py-[7px] leading-5 max-h-none text-base text-gray-700 outline-none appearance-none resize-none
                   ${visionConfig?.enabled && 'pl-12'}
                 `}
+                placeholder='输入你的问题，例如：这个项目的验收需要哪些材料？'
+                aria-label='输入你的问题'
                 value={query}
                 onChange={handleContentChange}
                 onKeyUp={handleKeyUp}
                 onKeyDown={handleKeyDown}
                 autoSize
               />
-              <div className="absolute bottom-2 right-6 flex items-center h-8">
-                <div className={`${s.count} mr-3 h-5 leading-5 text-sm bg-gray-50 text-gray-500 px-2 rounded`}>{query.trim().length}</div>
-                <Tooltip
-                  selector='send-tip'
-                  htmlContent={
-                    <div>
-                      <div>{t('common.operation.send')} Enter</div>
-                      <div>{t('common.operation.lineBreak')} Shift Enter</div>
-                    </div>
-                  }
-                >
-                  <div className={`${s.sendBtn} w-8 h-8 cursor-pointer rounded-md`} onClick={handleSend}></div>
-                </Tooltip>
+              <div className='knowledge-composer-actions'>
+                <span className='knowledge-mode'><BoltIcon />快速问答</span>
+                <button className='knowledge-send' aria-label='发送消息' disabled={isResponding || !query.trim()} onClick={handleSend}><ArrowUpIcon /></button>
               </div>
+              <div className='knowledge-composer-footer'><span>Enter 发送 · Shift + Enter 换行</span><span>内容由 AI 生成，仅供参考</span></div>
             </div>
           </div>
         )
