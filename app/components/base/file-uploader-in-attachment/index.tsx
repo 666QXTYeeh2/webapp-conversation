@@ -39,7 +39,7 @@ const FileUploaderInAttachment = ({
   const options = [
     {
       value: TransferMethod.local_file,
-      label: t('common.fileUploader.uploadFromComputer'),
+      label: '上传附件',
       icon: <RiUploadCloud2Line className='h-4 w-4' />,
     },
     {

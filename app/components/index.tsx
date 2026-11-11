@@ -75,6 +75,7 @@ const Main: FC<IMainProps> = () => {
     currConversationInfo,
     currInputs,
     newConversationInputs,
+    setNewConversationInputs,
     resetNewConversationInputs,
     setCurrInputs,
     setNewConversationInfo,
@@ -101,6 +102,9 @@ const Main: FC<IMainProps> = () => {
   const conversationIntroduction = currConversationInfo?.introduction || ''
   const suggestedQuestions = currConversationInfo?.suggested_questions || []
 
+  const conversationEpoch = useRef(0)
+  const [composerVersion, setComposerVersion] = useState(0)
+
   const handleConversationSwitch = () => {
     if (!inited) { return }
 
@@ -124,8 +128,11 @@ const Main: FC<IMainProps> = () => {
     }
 
     // update chat list of current conversation
-    if (!isNewConversation && !conversationIdChangeBecauseOfNew && !isResponding) {
+    if (!isNewConversation && !conversationIdChangeBecauseOfNew) {
+      const requestedId = currConversationId
+      const epoch = conversationEpoch.current
       fetchChatList(currConversationId).then((res: any) => {
+        if (getCurrConversationId() !== requestedId || conversationEpoch.current !== epoch) { return }
         const { data } = res
         const newChatList: ChatItem[] = generateNewChatListWithOpenStatement(notSyncToStateIntroduction, notSyncToStateInputs)
 
@@ -150,12 +157,19 @@ const Main: FC<IMainProps> = () => {
       })
     }
 
-    if (isNewConversation && isChatStarted) { setChatList(generateNewChatListWithOpenStatement()) }
+    if (isNewConversation) { setChatList(generateNewChatListWithOpenStatement()) }
   }
   useEffect(handleConversationSwitch, [currConversationId, inited])
 
   const handleConversationIdChange = (id: string) => {
+    conversationEpoch.current += 1
+    abortController?.abort()
+    setRespondingFalse()
+    setChatList([])
+    setComposerVersion(value => value + 1)
     if (id === '-1') {
+      resetNewConversationInputs()
+      setChatNotStarted()
       createNewChat()
       setConversationIdChangeBecauseOfNew(true)
     }
@@ -356,6 +370,11 @@ const Main: FC<IMainProps> = () => {
   }
 
   const handleSend = async (message: string, files?: VisionFile[]) => {
+    const epoch = conversationEpoch.current
+    const isCurrentRequest = () => epoch === conversationEpoch.current
+    const applyCurrentQA: typeof updateCurrentQA = (args) => {
+      if (isCurrentRequest()) { updateCurrentQA(args) }
+    }
     if (isResponding) {
       notify({ type: 'info', message: t('app.errorMessage.waitForResponse') })
       return
@@ -450,7 +469,7 @@ const Main: FC<IMainProps> = () => {
           setIsRespondingConCurrCon(false)
           return
         }
-        updateCurrentQA({
+        applyCurrentQA({
           responseItem,
           questionId,
           placeholderAnswerId,
@@ -458,11 +477,14 @@ const Main: FC<IMainProps> = () => {
         })
       },
       async onCompleted(hasError?: boolean) {
+        if (!isCurrentRequest()) { return }
         if (hasError) { return }
 
         if (getConversationIdChangeBecauseOfNew()) {
           const { data: allConversations }: any = await fetchConversations()
+          if (!isCurrentRequest()) { return }
           const newItem: any = await generationConversationName(allConversations[0].id)
+          if (!isCurrentRequest()) { return }
 
           const newAllConversations = produce(allConversations, (draft: any) => {
             draft[0].name = newItem.name
@@ -479,7 +501,7 @@ const Main: FC<IMainProps> = () => {
         const lastThought = responseItem.agent_thoughts?.[responseItem.agent_thoughts?.length - 1]
         if (lastThought) { lastThought.message_files = [...(lastThought as any).message_files, { ...file }] }
 
-        updateCurrentQA({
+        applyCurrentQA({
           responseItem,
           questionId,
           placeholderAnswerId,
@@ -515,7 +537,7 @@ const Main: FC<IMainProps> = () => {
           return false
         }
 
-        updateCurrentQA({
+        applyCurrentQA({
           responseItem,
           questionId,
           placeholderAnswerId,
@@ -523,6 +545,7 @@ const Main: FC<IMainProps> = () => {
         })
       },
       onMessageEnd: (messageEnd) => {
+        if (!isCurrentRequest()) { return }
         if (messageEnd.metadata?.annotation_reply) {
           responseItem.id = messageEnd.id
           responseItem.annotation = ({
@@ -555,6 +578,7 @@ const Main: FC<IMainProps> = () => {
         setChatList(newListWithAnswer)
       },
       onMessageReplace: (messageReplace) => {
+        if (!isCurrentRequest()) { return }
         setChatList(produce(
           getChatList(),
           (draft) => {
@@ -565,6 +589,7 @@ const Main: FC<IMainProps> = () => {
         ))
       },
       onError() {
+        if (!isCurrentRequest()) { return }
         setRespondingFalse()
         // role back placeholder answer
         setChatList(produce(getChatList(), (draft) => {
@@ -572,6 +597,7 @@ const Main: FC<IMainProps> = () => {
         }))
       },
       onWorkflowStarted: ({ workflow_run_id, task_id }) => {
+        if (!isCurrentRequest()) { return }
         // taskIdRef.current = task_id
         responseItem.workflow_run_id = workflow_run_id
         responseItem.workflowProcess = {
@@ -587,6 +613,7 @@ const Main: FC<IMainProps> = () => {
         }))
       },
       onWorkflowFinished: ({ data }) => {
+        if (!isCurrentRequest()) { return }
         responseItem.workflowProcess!.status = data.status as WorkflowRunningStatus
         setChatList(produce(getChatList(), (draft) => {
           const currentIndex = draft.findIndex(item => item.id === responseItem.id)
@@ -597,6 +624,7 @@ const Main: FC<IMainProps> = () => {
         }))
       },
       onNodeStarted: ({ data }) => {
+        if (!isCurrentRequest()) { return }
         responseItem.workflowProcess!.tracing!.push(data as any)
         setChatList(produce(getChatList(), (draft) => {
           const currentIndex = draft.findIndex(item => item.id === responseItem.id)
@@ -607,6 +635,7 @@ const Main: FC<IMainProps> = () => {
         }))
       },
       onNodeFinished: ({ data }) => {
+        if (!isCurrentRequest()) { return }
         const currentIndex = responseItem.workflowProcess!.tracing!.findIndex(item => item.node_id === data.node_id)
         responseItem.workflowProcess!.tracing[currentIndex] = data as any
         setChatList(produce(getChatList(), (draft) => {
@@ -689,10 +718,19 @@ const Main: FC<IMainProps> = () => {
               hasSetInputs && (
                 <div className='knowledge-chat-container' ref={chatListDomRef}>
                   <Chat
+                    key={`${currConversationId}-${composerVersion}`}
                     answerModes={promptConfig.prompt_variables.find(item => item.key === 'answer_mode' && item.type === 'select')?.options}
                     answerMode={currInputs?.answer_mode || ''}
-                    canChangeAnswerMode={canEditInputs}
-                    onAnswerModeChange={answer_mode => setCurrInputs({ ...currInputs, answer_mode })}
+                    canChangeAnswerMode={!isResponding}
+                    onAnswerModeChange={(answer_mode) => {
+                      if (!isNewConversation) {
+                        handleConversationIdChange('-1')
+                        setNewConversationInputs({ answer_mode })
+                      }
+                      else {
+                        setCurrInputs({ ...currInputs, answer_mode })
+                      }
+                    }}
                     chatList={chatList}
                     onSend={handleSend}
                     onFeedback={handleFeedback}

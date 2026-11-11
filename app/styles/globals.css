@@ -192,3 +192,6 @@ a {
 .knowledge-mode select { max-width: 220px; background: transparent; color: inherit; font: inherit; outline: none; cursor: pointer; }
 .knowledge-mode select:disabled { cursor: default; opacity: .75; }
 .knowledge-attachments { max-height: 180px; overflow-y: auto; padding: 10px 0 2px; }
+.knowledge-attach-button { display: inline-flex; align-items: center; gap: 6px; margin-left: 12px; padding: 8px 12px; color: #667085; border: 1px solid #e7e8ee; border-radius: 10px; font-size: 14px; }
+.knowledge-attach-button svg { width: 18px; }
+.knowledge-composer-actions .knowledge-send { margin-left: auto; }

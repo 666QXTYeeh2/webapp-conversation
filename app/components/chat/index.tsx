@@ -4,7 +4,7 @@ import React, { useEffect, useRef } from 'react'
 import cn from 'classnames'
 import { useTranslation } from 'react-i18next'
 import Textarea from 'rc-textarea'
-import { ArrowUpIcon, BoltIcon, ChatBubbleLeftIcon, CircleStackIcon, SparklesIcon } from '@heroicons/react/24/outline'
+import { ArrowUpIcon, BoltIcon, ChatBubbleLeftIcon, CircleStackIcon, PaperClipIcon, SparklesIcon } from '@heroicons/react/24/outline'
 import Answer from './answer'
 import Question from './question'
 import type { FeedbackFunc } from './type'
@@ -250,12 +250,13 @@ const Chat: FC<IChatProps> = ({
                 {answerModes?.length
                   ? <label className='knowledge-mode'>
                     <BoltIcon />
-                    <select aria-label='回答模式' title={canChangeAnswerMode ? '选择回答模式' : '当前对话的回答模式，新建对话可重新选择'} value={answerMode || ''} disabled={!canChangeAnswerMode || isResponding} onChange={e => onAnswerModeChange?.(e.target.value)}>
+                    <select aria-label='回答模式' title='选择回答模式；已有对话切换模式会开启新对话' value={answerMode || ''} disabled={!canChangeAnswerMode || isResponding} onChange={e => onAnswerModeChange?.(e.target.value)}>
                       <option value=''>默认模式（快速问答）</option>
                       {answerModes.map(mode => <option key={mode} value={mode}>{mode}</option>)}
                     </select>
                   </label>
-                  : <span className='knowledge-mode'><BoltIcon />快速问答</span>}
+                  : <button className='knowledge-mode' onClick={() => notify({ type: 'info', message: '当前应用没有发布回答模式选项，请在 Dify 发布包含 answer_mode 的流程后刷新页面' })}><BoltIcon />快速问答 ▾</button>}
+                {!fileConfig?.enabled && <button className='knowledge-attach-button' onClick={() => notify({ type: 'info', message: '当前 Dify 应用未开启文件上传，请在 Dify 功能设置中启用文件上传并发布，然后刷新页面' })}><PaperClipIcon />上传附件</button>}
                 <button className='knowledge-send' aria-label='发送消息' disabled={isResponding || !query.trim()} onClick={handleSend}><ArrowUpIcon /></button>
               </div>
               <div className='knowledge-composer-footer'><span>Enter 发送 · Shift + Enter 换行</span><span>内容由 AI 生成，仅供参考</span></div>
