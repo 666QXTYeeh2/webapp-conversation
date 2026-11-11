@@ -94,7 +94,7 @@ const Main: FC<IMainProps> = () => {
   const hasSetInputs = (() => {
     if (!isNewConversation) { return true }
 
-    return isChatStarted || (!!promptConfig && promptConfig.prompt_variables.length === 0)
+    return isChatStarted || (!!promptConfig && !promptConfig.prompt_variables.some(item => item.required))
   })()
 
   const conversationName = currConversationInfo?.name || t('app.chat.newChatDefaultName') as string
@@ -673,7 +673,7 @@ const Main: FC<IMainProps> = () => {
             <button className='knowledge-new-icon' title='新建对话' aria-label='新建对话' onClick={() => handleConversationIdChange('-1')}>＋</button>
           </header>
           <div className='knowledge-content'>
-            {promptConfig.prompt_variables.length > 0 && <ConfigSence
+            {promptConfig.prompt_variables.some(item => item.key !== 'answer_mode' || item.required) && <ConfigSence
               conversationName={conversationName}
               hasSetInputs={hasSetInputs}
               isPublicVersion={isShowPrompt}
@@ -689,6 +689,10 @@ const Main: FC<IMainProps> = () => {
               hasSetInputs && (
                 <div className='knowledge-chat-container' ref={chatListDomRef}>
                   <Chat
+                    answerModes={promptConfig.prompt_variables.find(item => item.key === 'answer_mode' && item.type === 'select')?.options}
+                    answerMode={currInputs?.answer_mode || ''}
+                    canChangeAnswerMode={canEditInputs}
+                    onAnswerModeChange={answer_mode => setCurrInputs({ ...currInputs, answer_mode })}
                     chatList={chatList}
                     onSend={handleSend}
                     onFeedback={handleFeedback}

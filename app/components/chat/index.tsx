@@ -16,9 +16,13 @@ import ImageList from '@/app/components/base/image-uploader/image-list'
 import { useImageFiles } from '@/app/components/base/image-uploader/hooks'
 import FileUploaderInAttachmentWrapper from '@/app/components/base/file-uploader-in-attachment'
 import type { FileEntity, FileUpload } from '@/app/components/base/file-uploader-in-attachment/types'
-import { getProcessedFiles } from '@/app/components/base/file-uploader-in-attachment/utils'
+import { fileIsUploaded, getProcessedFiles } from '@/app/components/base/file-uploader-in-attachment/utils'
 
 export interface IChatProps {
+  answerModes?: string[]
+  answerMode?: string
+  canChangeAnswerMode?: boolean
+  onAnswerModeChange?: (mode: string) => void
   chatList: ChatItem[]
   /**
    * Whether to display the editing area and rating status
@@ -40,6 +44,10 @@ export interface IChatProps {
 
 const Chat: FC<IChatProps> = ({
   chatList,
+  answerModes,
+  answerMode,
+  canChangeAnswerMode,
+  onAnswerModeChange,
   feedbackDisabled = false,
   isHideSendInput = false,
   onFeedback,
@@ -96,9 +104,13 @@ const Chat: FC<IChatProps> = ({
   const [attachmentFiles, setAttachmentFiles] = React.useState<FileEntity[]>([])
 
   const handleSend = () => {
-    if (!valid() || (checkCanSend && !checkCanSend())) { return }
-    const hasPendingImageUploads = files.some(file => file.progress !== -1 && file.progress < 100)
-    const hasPendingAttachmentUploads = attachmentFiles.some(file => file.progress !== -1 && file.progress < 100)
+    if (isResponding || !valid() || (checkCanSend && !checkCanSend())) { return }
+    if (files.some(file => file.progress === -1) || attachmentFiles.some(file => file.progress === -1)) {
+      logError('有文件上传失败，请重试或移除后再发送')
+      return
+    }
+    const hasPendingImageUploads = files.some(file => file.progress !== -1 && (file.progress < 100 || !file.fileId))
+    const hasPendingAttachmentUploads = attachmentFiles.some(file => !fileIsUploaded(file))
     if (hasPendingImageUploads || hasPendingAttachmentUploads) {
       logError(t('app.errorMessage.waitForFileUpload'))
       return
@@ -211,9 +223,10 @@ const Chat: FC<IChatProps> = ({
               }
               {
                 fileConfig?.enabled && (
-                  <div className={`${visionConfig?.enabled ? 'pl-[52px]' : ''} mb-1`}>
+                  <div className='knowledge-attachments'>
+                    <p className='mb-2 text-xs text-gray-500'>添加附件，与问题一起发送（最多 {fileConfig.number_limits || 1} 个）</p>
                     <FileUploaderInAttachmentWrapper
-                      fileConfig={fileConfig}
+                      fileConfig={{ ...fileConfig, allowed_file_upload_methods: fileConfig.allowed_file_upload_methods?.filter(method => method === TransferMethod.local_file) }}
                       value={attachmentFiles}
                       onChange={setAttachmentFiles}
                     />
@@ -234,7 +247,15 @@ const Chat: FC<IChatProps> = ({
                 autoSize
               />
               <div className='knowledge-composer-actions'>
-                <span className='knowledge-mode'><BoltIcon />快速问答</span>
+                {answerModes?.length
+                  ? <label className='knowledge-mode'>
+                    <BoltIcon />
+                    <select aria-label='回答模式' title={canChangeAnswerMode ? '选择回答模式' : '当前对话的回答模式，新建对话可重新选择'} value={answerMode || ''} disabled={!canChangeAnswerMode || isResponding} onChange={e => onAnswerModeChange?.(e.target.value)}>
+                      <option value=''>默认模式（快速问答）</option>
+                      {answerModes.map(mode => <option key={mode} value={mode}>{mode}</option>)}
+                    </select>
+                  </label>
+                  : <span className='knowledge-mode'><BoltIcon />快速问答</span>}
                 <button className='knowledge-send' aria-label='发送消息' disabled={isResponding || !query.trim()} onClick={handleSend}><ArrowUpIcon /></button>
               </div>
               <div className='knowledge-composer-footer'><span>Enter 发送 · Shift + Enter 换行</span><span>内容由 AI 生成，仅供参考</span></div>

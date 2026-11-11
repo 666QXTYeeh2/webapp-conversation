@@ -10,6 +10,6 @@ export async function POST(request: NextRequest) {
     return new Response(res.data.id as any)
   }
   catch (e: any) {
-    return new Response(e.message)
+    return Response.json({ error: '文件上传失败，请重试' }, { status: 502 })
   }
 }

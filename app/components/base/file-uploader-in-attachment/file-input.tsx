@@ -36,6 +36,7 @@ const FileInput = ({
     <input
       className='absolute inset-0 block w-full cursor-pointer text-[0] opacity-0 disabled:cursor-not-allowed'
       onClick={e => ((e.target as HTMLInputElement).value = '')}
+      aria-label='上传附件'
       type='file'
       onChange={handleChange}
       accept={accept}
