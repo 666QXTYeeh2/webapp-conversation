@@ -56,8 +56,10 @@ const FileUploaderInAttachment = ({
     // 紧凑入口复用原有文件输入，保持格式校验、数量限制和上传流程一致。
     if (compact && option.value === TransferMethod.local_file) {
       const isFull = !!(fileConfig.number_limits && files.length >= fileConfig.number_limits)
+      const sizeLimit = fileConfig.fileUploadConfig?.file_size_limit
+      const uploadTip = isFull ? '已达到附件数量上限' : `上传附件${fileConfig.number_limits ? `，最多 ${fileConfig.number_limits} 个` : ''}${sizeLimit ? `，文档每个 ${sizeLimit} MB` : ''}`
       return (
-        <label key={option.value} className={cn('attachment-icon-trigger', isFull && 'attachment-icon-trigger-disabled')} title={isFull ? '已达到附件数量上限' : '上传附件'}>
+        <label key={option.value} className={cn('attachment-icon-trigger', isFull && 'attachment-icon-trigger-disabled')} data-tooltip={uploadTip}>
           <RiAttachment2 aria-hidden='true' className='h-5 w-5' />
           <FileInput fileConfig={fileConfig} />
         </label>
