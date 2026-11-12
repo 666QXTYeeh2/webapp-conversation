@@ -384,9 +384,11 @@ const Main: FC<IMainProps> = () => {
     if (currInputs) {
       Object.keys(currInputs).forEach((key) => {
         const value = currInputs[key]
+        // 可选输入可能为 null 或 undefined，跳过空值，保留其余输入及文件转换。
+        if (value === null || value === undefined) { return }
         if (value.supportFileType) { toServerInputs[key] = transformToServerFile(value) }
 
-        else if (value[0]?.supportFileType) { toServerInputs[key] = value.map((item: any) => transformToServerFile(item)) }
+        else if (Array.isArray(value) && value[0]?.supportFileType) { toServerInputs[key] = value.filter(item => item !== null && item !== undefined).map(item => transformToServerFile(item)) }
 
         else { toServerInputs[key] = value }
       })

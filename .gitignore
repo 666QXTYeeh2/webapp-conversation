@@ -51,3 +51,6 @@ yarn.lock
 .serena
 # pmpm
 pnpm-lock.yaml
+
+# 公开分享快照，不提交用户内容
+.share-data/

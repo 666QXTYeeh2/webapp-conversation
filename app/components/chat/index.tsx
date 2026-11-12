@@ -6,6 +6,7 @@ import { useTranslation } from 'react-i18next'
 import Textarea from 'rc-textarea'
 import { ArrowUpIcon, BoltIcon, ChatBubbleLeftIcon, CircleStackIcon, CpuChipIcon, PaperClipIcon, SparklesIcon } from '@heroicons/react/24/outline'
 import Answer from './answer'
+import ShareDialog from './share-dialog'
 import Question from './question'
 import type { FeedbackFunc } from './type'
 import type { ChatItem, VisionFile, VisionSettings } from '@/types/app'
@@ -65,6 +66,7 @@ const Chat: FC<IChatProps> = ({
   const { notify } = Toast
   const isUseInputMethod = useRef(false)
 
+  const [shareId, setShareId] = React.useState<string | null>(null)
   const [query, setQuery] = React.useState('')
   const queryRef = useRef('')
   const [quickQuestions, setQuickQuestions] = React.useState<string[]>([])
@@ -242,6 +244,7 @@ const Chat: FC<IChatProps> = ({
 
   return (
     <div className={cn('knowledge-chat', !feedbackDisabled && 'px-3.5')}>
+      {shareId && <ShareDialog messages={chatList.filter(message => !message.feedbackDisabled && message.content.trim())} initialId={shareId} onClose={() => setShareId(null)} />}
       {!chatList.some(item => !item.isAnswer) && <section className='knowledge-welcome'>
         <div className='knowledge-welcome-icon'><SparklesIcon /></div>
         <h2>知识问答</h2>
@@ -255,9 +258,18 @@ const Chat: FC<IChatProps> = ({
         {chatList.map((item) => {
           if (item.isAnswer) {
             const isLast = item.id === chatList[chatList.length - 1].id
+            const question = chatList.slice(0, chatList.indexOf(item)).findLast(message => !message.isAnswer)
             return <Answer
               key={item.id}
               item={item}
+              onShare={() => setShareId(item.id)}
+              actionsDisabled={isResponding}
+              onRegenerate={isLast && question
+                ? () => {
+                // 复用本轮问题及附件重新请求，保留原回答供用户对照。
+                  if (!isResponding && (!checkCanSend || checkCanSend())) { onSend(question.content, question.message_files || []) }
+                }
+                : undefined}
               feedbackDisabled={feedbackDisabled}
               onFeedback={onFeedback}
               isResponding={isResponding && isLast}
