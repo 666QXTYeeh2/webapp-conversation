@@ -21,6 +21,7 @@ import AppUnavailable from '@/app/components/app-unavailable'
 import { API_KEY, APP_ID, APP_INFO, isShowPrompt, promptTemplate } from '@/config'
 import type { Annotation as AnnotationType } from '@/types/log'
 import { addFileInfos, sortAgentSorts } from '@/utils/tools'
+import { decodeModeQuery } from '@/utils/request-mode'
 
 export interface IMainProps {
   params: any
@@ -75,7 +76,6 @@ const Main: FC<IMainProps> = () => {
     currConversationInfo,
     currInputs,
     newConversationInputs,
-    setNewConversationInputs,
     resetNewConversationInputs,
     setCurrInputs,
     setNewConversationInfo,
@@ -104,6 +104,7 @@ const Main: FC<IMainProps> = () => {
 
   const conversationEpoch = useRef(0)
   const [composerVersion, setComposerVersion] = useState(0)
+  const [selectedAnswerMode, setSelectedAnswerMode] = useState('快速问答')
 
   const handleConversationSwitch = () => {
     if (!inited) { return }
@@ -139,7 +140,7 @@ const Main: FC<IMainProps> = () => {
         data.forEach((item: any) => {
           newChatList.push({
             id: `question-${item.id}`,
-            content: item.query,
+            content: decodeModeQuery(item.query),
             isAnswer: false,
             message_files: item.message_files?.filter((file: any) => file.belongs_to === 'user') || [],
 
@@ -397,6 +398,7 @@ const Main: FC<IMainProps> = () => {
     const data: Record<string, any> = {
       inputs: toServerInputs,
       query: message,
+      answer_mode: selectedAnswerMode,
       conversation_id: isNewConversation ? null : currConversationId,
     }
 
@@ -728,18 +730,10 @@ const Main: FC<IMainProps> = () => {
                 <div className='knowledge-chat-container' ref={chatListDomRef}>
                   <Chat
                     key={`${currConversationId}-${composerVersion}`}
-                    answerModes={promptConfig.prompt_variables.find(item => item.key === 'answer_mode' && item.type === 'select')?.options}
-                    answerMode={currInputs?.answer_mode || ''}
+                    answerModes={['快速问答', '智能推理']}
+                    answerMode={selectedAnswerMode}
                     canChangeAnswerMode={!isResponding}
-                    onAnswerModeChange={(answer_mode) => {
-                      if (!isNewConversation) {
-                        handleConversationIdChange('-1')
-                        setNewConversationInputs({ answer_mode })
-                      }
-                      else {
-                        setCurrInputs({ ...currInputs, answer_mode })
-                      }
-                    }}
+                    onAnswerModeChange={setSelectedAnswerMode}
                     chatList={chatList}
                     onSend={handleSend}
                     onFeedback={handleFeedback}

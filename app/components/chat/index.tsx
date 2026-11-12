@@ -380,7 +380,7 @@ const Chat: FC<IChatProps> = ({
                           type='button'
                           className={cn('knowledge-mode-option', selected && 'knowledge-mode-option-active')}
                           aria-pressed={selected}
-                          title='已有对话切换模式会开启新对话'
+                          title='仅影响下一次回答，保留当前对话上下文'
                           disabled={!canChangeAnswerMode || isResponding || !answerModes.includes(mode)}
                           onClick={() => { if (!selected) { onAnswerModeChange?.(mode) } }}
                         >
