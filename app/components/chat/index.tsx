@@ -1,6 +1,6 @@
 'use client'
 import type { FC } from 'react'
-import React, { useEffect, useRef } from 'react'
+import React, { useEffect, useId, useRef } from 'react'
 import cn from 'classnames'
 import { useTranslation } from 'react-i18next'
 import Textarea from 'rc-textarea'
@@ -67,7 +67,26 @@ const Chat: FC<IChatProps> = ({
 
   const [query, setQuery] = React.useState('')
   const queryRef = useRef('')
-  const [quickQuestions, setQuickQuestions] = React.useState(DEFAULT_QUICK_QUESTIONS)
+  const [quickQuestions, setQuickQuestions] = React.useState<string[]>([])
+  const [inputSuggestions, setInputSuggestions] = React.useState<string[]>([])
+  const [inputFocused, setInputFocused] = React.useState(false)
+  const [suggestionsDismissed, setSuggestionsDismissed] = React.useState(false)
+  const [activeSuggestion, setActiveSuggestion] = React.useState(-1)
+  const suggestionListId = useId()
+  const handledSuggestionEnter = useRef(false)
+  const showInputSuggestions = inputFocused && !suggestionsDismissed && !isResponding && !!query.trim() && inputSuggestions.length > 0
+
+  useEffect(() => {
+    // 复用配置中心的问题库，在输入停止后匹配，避免每次按键调用工作流。
+    const timer = setTimeout(() => {
+      const keywords = query.trim().toLocaleLowerCase().split(/\s+/).filter(Boolean)
+      setInputSuggestions(keywords.length
+        ? quickQuestions.filter(question => keywords.every(keyword => question.toLocaleLowerCase().includes(keyword)) && question.trim() !== query.trim()).slice(0, 5)
+        : [])
+      setActiveSuggestion(-1)
+    }, 150)
+    return () => clearTimeout(timer)
+  }, [query, quickQuestions])
 
   useEffect(() => {
     const controller = new AbortController()
@@ -75,17 +94,20 @@ const Chat: FC<IChatProps> = ({
       try {
         const response = await fetch('/api/quick-questions', { signal: controller.signal, cache: 'no-store' })
         if (!response.ok)
-        { return }
+        { throw new Error('问题配置获取失败') }
         const result: unknown = await response.json()
         if (typeof result !== 'object' || result === null || !('quick_questions' in result))
-        { return }
+        { throw new Error('问题配置格式无效') }
         const questions: unknown = result.quick_questions
-        // 缺少配置、返回空列表或请求失败时沿用默认问题，卸载后不再更新状态。
-        if (!controller.signal.aborted && Array.isArray(questions) && questions.length && questions.every((question: unknown) => typeof question === 'string' && question.trim()))
-        { setQuickQuestions([...new Set(questions as string[])]) }
+        if (!Array.isArray(questions) || !questions.length || !questions.every((question: unknown) => typeof question === 'string' && question.trim()))
+        { throw new Error('问题配置为空或格式无效') }
+        if (!controller.signal.aborted)
+        { setQuickQuestions([...new Set((questions as string[]).map(question => question.trim()))]) }
       }
       catch {
-        // 配置中心不可用不影响正常问答，也不清空默认问题。
+        // 加载期间不展示默认问题，仅确认无法获取配置后兜底，卸载取消不更新状态。
+        if (!controller.signal.aborted)
+        { setQuickQuestions(DEFAULT_QUICK_QUESTIONS) }
       }
     }
     void loadQuickQuestions()
@@ -96,6 +118,9 @@ const Chat: FC<IChatProps> = ({
     const value = e.target.value
     setQuery(value)
     queryRef.current = value
+    setInputSuggestions([])
+    setActiveSuggestion(-1)
+    setSuggestionsDismissed(false)
   }
 
   const logError = (message: string) => {
@@ -161,6 +186,11 @@ const Chat: FC<IChatProps> = ({
   }
 
   const handleKeyUp = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    // 选择提示使用的回车不再触发发送，避免填入后立即提交。
+    if (e.code === 'Enter' && handledSuggestionEnter.current) {
+      handledSuggestionEnter.current = false
+      return
+    }
     if (e.code === 'Enter') {
       e.preventDefault()
       // prevent send message when using input method enter
@@ -170,12 +200,38 @@ const Chat: FC<IChatProps> = ({
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     isUseInputMethod.current = e.nativeEvent.isComposing
+    if (isUseInputMethod.current) { return }
+    if (showInputSuggestions && (e.key === 'ArrowDown' || e.key === 'ArrowUp')) {
+      e.preventDefault()
+      setActiveSuggestion(current => e.key === 'ArrowDown'
+        ? (current + 1) % inputSuggestions.length
+        : (current <= 0 ? inputSuggestions.length - 1 : current - 1))
+      return
+    }
+    if (showInputSuggestions && e.key === 'Escape') {
+      e.preventDefault()
+      setSuggestionsDismissed(true)
+      return
+    }
+    if (showInputSuggestions && activeSuggestion >= 0 && e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault()
+      handledSuggestionEnter.current = true
+      selectInputSuggestion(inputSuggestions[activeSuggestion])
+      return
+    }
     if (e.code === 'Enter' && !e.shiftKey) {
       const result = query.replace(/\n$/, '')
       setQuery(result)
       queryRef.current = result
       e.preventDefault()
     }
+  }
+
+  const selectInputSuggestion = (question: string) => {
+    setQuery(question)
+    queryRef.current = question
+    setSuggestionsDismissed(true)
+    setActiveSuggestion(-1)
   }
 
   const suggestionClick = (suggestion: string) => {
@@ -222,6 +278,28 @@ const Chat: FC<IChatProps> = ({
       {
         !isHideSendInput && (
           <div className='knowledge-composer-wrap'>
+            {showInputSuggestions && (
+              <div className='knowledge-input-suggestions'>
+                <div className='knowledge-input-suggestions-heading'>你可能想问<span>↑ ↓ 选择 · Enter 填入 · Esc 关闭</span></div>
+                <div id={suggestionListId} role='listbox' aria-label='问题提示'>
+                  {inputSuggestions.map((question, index) => (
+                    <button
+                      key={question}
+                      id={`${suggestionListId}-${index}`}
+                      type='button'
+                      role='option'
+                      tabIndex={-1}
+                      aria-selected={activeSuggestion === index}
+                      className={cn('knowledge-input-suggestion', activeSuggestion === index && 'knowledge-input-suggestion-active')}
+                      onMouseDown={e => e.preventDefault()}
+                      onClick={() => selectInputSuggestion(question)}
+                    >
+                      <ChatBubbleLeftIcon aria-hidden='true' /><span>{question}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
             <div className='knowledge-composer'>
               <div className='knowledge-scope'><CircleStackIcon /><span>检索范围</span><strong>当前应用关联的知识库</strong></div>
               {
@@ -266,6 +344,11 @@ const Chat: FC<IChatProps> = ({
                 `}
                 placeholder='输入你的问题，例如：这个项目的验收需要哪些材料？'
                 aria-label='输入你的问题'
+                aria-autocomplete='list'
+                aria-controls={showInputSuggestions ? suggestionListId : undefined}
+                aria-activedescendant={showInputSuggestions && activeSuggestion >= 0 ? `${suggestionListId}-${activeSuggestion}` : undefined}
+                onFocus={() => setInputFocused(true)}
+                onBlur={() => { setInputFocused(false); handledSuggestionEnter.current = false }}
                 value={query}
                 onChange={handleContentChange}
                 onKeyUp={handleKeyUp}

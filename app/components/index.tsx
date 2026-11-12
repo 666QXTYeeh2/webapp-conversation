@@ -159,7 +159,8 @@ const Main: FC<IMainProps> = () => {
 
     if (isNewConversation) { setChatList(generateNewChatListWithOpenStatement()) }
   }
-  useEffect(handleConversationSwitch, [currConversationId, inited])
+  // 重复新建时对话编号仍是 -1，通过输入区版本变化重新初始化开场白。
+  useEffect(handleConversationSwitch, [currConversationId, inited, composerVersion])
 
   const handleConversationIdChange = (id: string) => {
     conversationEpoch.current += 1
@@ -671,6 +672,11 @@ const Main: FC<IMainProps> = () => {
       <Sidebar
         list={conversationList}
         onCurrentIdChange={handleConversationIdChange}
+        onDeleted={(ids) => {
+          // 删除当前对话时先终止旧请求，再切换到新对话，避免流式结果重新写入。
+          if (ids.includes(getCurrConversationId())) { handleConversationIdChange('-1') }
+          setConversationList(previous => previous.filter(item => !ids.includes(item.id)))
+        }}
         currentId={currConversationId}
         copyRight={APP_INFO.copyright || APP_INFO.title}
       />
