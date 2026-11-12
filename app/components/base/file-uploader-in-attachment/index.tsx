@@ -3,6 +3,7 @@ import {
 } from 'react'
 import {
   RiLink,
+  RiAttachment2,
   RiUploadCloud2Line,
 } from '@remixicon/react'
 import { useTranslation } from 'react-i18next'
@@ -26,9 +27,11 @@ interface Option {
 }
 interface FileUploaderInAttachmentProps {
   fileConfig: FileUpload
+  compact?: boolean
 }
 const FileUploaderInAttachment = ({
   fileConfig,
+  compact = false,
 }: FileUploaderInAttachmentProps) => {
   const { t } = useTranslation()
   const files = useStore(s => s.files)
@@ -50,6 +53,16 @@ const FileUploaderInAttachment = ({
   ]
 
   const renderButton = useCallback((option: Option, open?: boolean) => {
+    // 紧凑入口复用原有文件输入，保持格式校验、数量限制和上传流程一致。
+    if (compact && option.value === TransferMethod.local_file) {
+      const isFull = !!(fileConfig.number_limits && files.length >= fileConfig.number_limits)
+      return (
+        <label key={option.value} className={cn('attachment-icon-trigger', isFull && 'attachment-icon-trigger-disabled')} title={isFull ? '已达到附件数量上限' : '上传附件'}>
+          <RiAttachment2 aria-hidden='true' className='h-5 w-5' />
+          <FileInput fileConfig={fileConfig} />
+        </label>
+      )
+    }
     return (
       <Button
         key={option.value}
@@ -66,7 +79,7 @@ const FileUploaderInAttachment = ({
         }
       </Button>
     )
-  }, [fileConfig, files.length])
+  }, [compact, fileConfig, files.length])
   const renderTrigger = useCallback((option: Option) => {
     return (open: boolean) => renderButton(option, open)
   }, [renderButton])
@@ -86,11 +99,11 @@ const FileUploaderInAttachment = ({
   }, [renderButton, renderTrigger, fileConfig])
 
   return (
-    <div>
+    <div className={cn(compact && 'attachment-uploader-compact')}>
       <div className='flex items-center space-x-1'>
         {options.map(renderOption)}
       </div>
-      <div className='mt-1 space-y-1'>
+      <div className={compact ? 'attachment-card-list' : 'mt-1 space-y-1'}>
         {
           files.map(file => (
             <FileItem
@@ -112,18 +125,20 @@ interface FileUploaderInAttachmentWrapperProps {
   value?: FileEntity[]
   onChange: (files: FileEntity[]) => void
   fileConfig: FileUpload
+  compact?: boolean
 }
 const FileUploaderInAttachmentWrapper = ({
   value,
   onChange,
   fileConfig,
+  compact,
 }: FileUploaderInAttachmentWrapperProps) => {
   return (
     <FileContextProvider
       value={value}
       onChange={onChange}
     >
-      <FileUploaderInAttachment fileConfig={fileConfig} />
+      <FileUploaderInAttachment fileConfig={fileConfig} compact={compact} />
     </FileContextProvider>
   )
 }

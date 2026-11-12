@@ -399,13 +399,13 @@ const Main: FC<IMainProps> = () => {
 
     if (files && files?.length > 0) {
       data.files = files.map((item) => {
-        if (item.transfer_method === TransferMethod.local_file) {
-          return {
-            ...item,
-            url: '',
-          }
+        // 文件名等信息仅供消息展示，接口仍只接收上传协议字段。
+        return {
+          type: item.type,
+          transfer_method: item.transfer_method,
+          upload_file_id: item.upload_file_id,
+          url: item.transfer_method === TransferMethod.local_file ? '' : item.url,
         }
-        return item
       })
     }
 
@@ -415,7 +415,8 @@ const Main: FC<IMainProps> = () => {
       id: questionId,
       content: message,
       isAnswer: false,
-      message_files: (files || []).filter((f: any) => f.type === 'image'),
+      // 提问保留全部附件，输入框清空后仍可查看本轮发送的文件。
+      message_files: files || [],
     }
 
     const placeholderAnswerId = `answer-placeholder-${Date.now()}`

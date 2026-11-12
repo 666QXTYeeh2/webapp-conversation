@@ -6,13 +6,16 @@ import s from '../style.module.css'
 
 import StreamdownMarkdown from '@/app/components/base/streamdown-markdown'
 import ImageGallery from '@/app/components/base/image-gallery'
+import type { VisionFile } from '@/types/app'
+import FileItem from '@/app/components/base/file-uploader-in-attachment/file-item'
 
 type IQuestionProps = Pick<IChatItem, 'id' | 'content' | 'useCurrentUserAvatar'> & {
-  imgSrcs?: string[]
+  files?: VisionFile[]
 }
 
-const Question: FC<IQuestionProps> = ({ id, content, useCurrentUserAvatar, imgSrcs }) => {
+const Question: FC<IQuestionProps> = ({ id, content, useCurrentUserAvatar, files = [] }) => {
   const userName = ''
+  const imgSrcs = files.filter(file => file.type === 'image' && file.url).map(file => file.url)
   return (
     <div className='flex items-start justify-end' key={id}>
       <div>
@@ -23,6 +26,25 @@ const Question: FC<IQuestionProps> = ({ id, content, useCurrentUserAvatar, imgSr
             {imgSrcs && imgSrcs.length > 0 && (
               <ImageGallery srcs={imgSrcs} />
             )}
+            <div className='knowledge-question-files'>
+              {files.filter(file => file.type !== 'image').map(file => (
+                <FileItem
+                  key={file.id || file.upload_file_id || file.url}
+                  file={{
+                    id: file.id || file.upload_file_id || file.url,
+                    name: file.name || file.filename || '已发送附件',
+                    size: file.size || 0,
+                    type: file.mime_type || '',
+                    progress: 100,
+                    transferMethod: file.transfer_method,
+                    supportFileType: file.type,
+                    uploadedId: file.upload_file_id || file.id,
+                    url: file.url,
+                  }}
+                  showDownloadAction={!!file.url}
+                />
+              ))}
+            </div>
             <StreamdownMarkdown content={content} />
           </div>
         </div>

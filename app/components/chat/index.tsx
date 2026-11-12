@@ -4,7 +4,7 @@ import React, { useEffect, useRef } from 'react'
 import cn from 'classnames'
 import { useTranslation } from 'react-i18next'
 import Textarea from 'rc-textarea'
-import { ArrowUpIcon, BoltIcon, ChatBubbleLeftIcon, CircleStackIcon, PaperClipIcon, SparklesIcon } from '@heroicons/react/24/outline'
+import { ArrowUpIcon, BoltIcon, ChatBubbleLeftIcon, CircleStackIcon, CpuChipIcon, PaperClipIcon, SparklesIcon } from '@heroicons/react/24/outline'
 import Answer from './answer'
 import Question from './question'
 import type { FeedbackFunc } from './type'
@@ -17,6 +17,8 @@ import { useImageFiles } from '@/app/components/base/image-uploader/hooks'
 import FileUploaderInAttachmentWrapper from '@/app/components/base/file-uploader-in-attachment'
 import type { FileEntity, FileUpload } from '@/app/components/base/file-uploader-in-attachment/types'
 import { fileIsUploaded, getProcessedFiles } from '@/app/components/base/file-uploader-in-attachment/utils'
+
+const DEFAULT_QUICK_QUESTIONS = ['这个知识库主要包含哪些方面的内容？', '帮我梳理一下相关的流程和注意事项', '有哪些容易踩坑的细节？']
 
 export interface IChatProps {
   answerModes?: string[]
@@ -65,8 +67,32 @@ const Chat: FC<IChatProps> = ({
 
   const [query, setQuery] = React.useState('')
   const queryRef = useRef('')
+  const [quickQuestions, setQuickQuestions] = React.useState(DEFAULT_QUICK_QUESTIONS)
 
-  const handleContentChange = (e: any) => {
+  useEffect(() => {
+    const controller = new AbortController()
+    const loadQuickQuestions = async () => {
+      try {
+        const response = await fetch('/api/quick-questions', { signal: controller.signal, cache: 'no-store' })
+        if (!response.ok)
+        { return }
+        const result: unknown = await response.json()
+        if (typeof result !== 'object' || result === null || !('quick_questions' in result))
+        { return }
+        const questions: unknown = result.quick_questions
+        // 缺少配置、返回空列表或请求失败时沿用默认问题，卸载后不再更新状态。
+        if (!controller.signal.aborted && Array.isArray(questions) && questions.length && questions.every((question: unknown) => typeof question === 'string' && question.trim()))
+        { setQuickQuestions([...new Set(questions as string[])]) }
+      }
+      catch {
+        // 配置中心不可用不影响正常问答，也不清空默认问题。
+      }
+    }
+    void loadQuickQuestions()
+    return () => controller.abort()
+  }, [])
+
+  const handleContentChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     const value = e.target.value
     setQuery(value)
     queryRef.current = value
@@ -134,7 +160,7 @@ const Chat: FC<IChatProps> = ({
     if (!attachmentFiles.find(item => item.transferMethod === TransferMethod.local_file && !item.uploadedId)) { setAttachmentFiles([]) }
   }
 
-  const handleKeyUp = (e: any) => {
+  const handleKeyUp = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.code === 'Enter') {
       e.preventDefault()
       // prevent send message when using input method enter
@@ -142,7 +168,7 @@ const Chat: FC<IChatProps> = ({
     }
   }
 
-  const handleKeyDown = (e: any) => {
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     isUseInputMethod.current = e.nativeEvent.isComposing
     if (e.code === 'Enter' && !e.shiftKey) {
       const result = query.replace(/\n$/, '')
@@ -165,7 +191,7 @@ const Chat: FC<IChatProps> = ({
         <h2>知识问答</h2>
         <p>从知识库里寻找答案，让每一个问题都有据可依。<br />清晰解答，帮助你更快找到所需信息。</p>
         <div className='knowledge-suggestions'>
-          {['这个知识库主要包含哪些方面的内容？', '帮我梳理一下相关的流程和注意事项', '有哪些容易踩坑的细节？'].map(question => <button key={question} disabled={isResponding} onClick={() => suggestionClick(question)}><ChatBubbleLeftIcon /><span>{question}</span></button>)}
+          {quickQuestions.map(question => <button key={question} disabled={isResponding} onClick={() => suggestionClick(question)}><ChatBubbleLeftIcon /><span>{question}</span></button>)}
         </div>
       </section>}
       {/* Chat List */}
@@ -188,7 +214,7 @@ const Chat: FC<IChatProps> = ({
               id={item.id}
               content={item.content}
               useCurrentUserAvatar={useCurrentUserAvatar}
-              imgSrcs={(item.message_files && item.message_files?.length > 0) ? item.message_files.map(item => item.url) : []}
+              files={item.message_files}
             />
           )
         })}
@@ -224,8 +250,8 @@ const Chat: FC<IChatProps> = ({
               {
                 fileConfig?.enabled && (
                   <div className='knowledge-attachments'>
-                    <p className='mb-2 text-xs text-gray-500'>添加附件，与问题一起发送（最多 {fileConfig.number_limits || 1} 个）</p>
                     <FileUploaderInAttachmentWrapper
+                      compact
                       fileConfig={{ ...fileConfig, allowed_file_upload_methods: fileConfig.allowed_file_upload_methods?.filter(method => method === TransferMethod.local_file) }}
                       value={attachmentFiles}
                       onChange={setAttachmentFiles}
@@ -248,13 +274,27 @@ const Chat: FC<IChatProps> = ({
               />
               <div className='knowledge-composer-actions'>
                 {answerModes?.length
-                  ? <label className='knowledge-mode'>
-                    <BoltIcon />
-                    <select aria-label='回答模式' title='选择回答模式；已有对话切换模式会开启新对话' value={answerMode || ''} disabled={!canChangeAnswerMode || isResponding} onChange={e => onAnswerModeChange?.(e.target.value)}>
-                      <option value=''>默认模式（快速问答）</option>
-                      {answerModes.map(mode => <option key={mode} value={mode}>{mode}</option>)}
-                    </select>
-                  </label>
+                  ? <div className='knowledge-mode-switch' role='group' aria-label='回答模式'>
+                    {/* 空值默认快速问答，旧版详细分析归入智能推理，界面只保留两种模式。 */}
+                    {['快速问答', '智能推理'].map((mode) => {
+                      const currentMode = answerMode === '智能推理' || answerMode === '详细分析' ? '智能推理' : '快速问答'
+                      const selected = currentMode === mode
+                      return (
+                        <button
+                          key={mode}
+                          type='button'
+                          className={cn('knowledge-mode-option', selected && 'knowledge-mode-option-active')}
+                          aria-pressed={selected}
+                          title='已有对话切换模式会开启新对话'
+                          disabled={!canChangeAnswerMode || isResponding || !answerModes.includes(mode)}
+                          onClick={() => { if (!selected) { onAnswerModeChange?.(mode) } }}
+                        >
+                          {mode === '快速问答' ? <BoltIcon /> : <CpuChipIcon />}
+                          <span>{mode}</span>
+                        </button>
+                      )
+                    })}
+                  </div>
                   : <button className='knowledge-mode' onClick={() => notify({ type: 'info', message: '当前应用没有发布回答模式选项，请在 Dify 发布包含 answer_mode 的流程后刷新页面' })}><BoltIcon />快速问答 ▾</button>}
                 {!fileConfig?.enabled && <button className='knowledge-attach-button' onClick={() => notify({ type: 'info', message: '当前 Dify 应用未开启文件上传，请在 Dify 功能设置中启用文件上传并发布，然后刷新页面' })}><PaperClipIcon />上传附件</button>}
                 <button className='knowledge-send' aria-label='发送消息' disabled={isResponding || !query.trim()} onClick={handleSend}><ArrowUpIcon /></button>

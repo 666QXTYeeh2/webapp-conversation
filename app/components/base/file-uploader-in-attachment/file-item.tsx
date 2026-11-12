@@ -47,8 +47,8 @@ const FileInAttachmentItem = ({
   return (
     <>
       <div className={cn(
-        'flex h-12 items-center rounded-lg border-[0.5px] border-components-panel-border bg-components-panel-on-panel-item-bg pr-3 shadow-xs',
-        progress === -1 && 'border-state-destructive-border bg-state-destructive-hover',
+        'attachment-file-card flex h-12 items-center rounded-lg border-[0.5px] border-components-panel-border bg-components-panel-on-panel-item-bg pr-3 shadow-xs',
+        progress === -1 && 'attachment-file-card-error border-state-destructive-border bg-state-destructive-hover',
       )}>
         <div className='flex h-12 w-12 items-center justify-center'>
           {
@@ -75,7 +75,7 @@ const FileInAttachmentItem = ({
           >
             <div className='truncate'>{name}</div>
           </div>
-          <div className='system-2xs-medium-uppercase flex items-center text-text-tertiary'>
+          <div className='attachment-file-meta system-2xs-medium-uppercase flex items-center text-text-tertiary'>
             {
               ext && (
                 <span>{ext.toLowerCase()}</span>
@@ -105,6 +105,8 @@ const FileInAttachmentItem = ({
           {
             progress === -1 && (
               <ActionButton
+                aria-label={`重新上传 ${name}`}
+                title='重新上传'
                 className='mr-1'
                 onClick={() => onReUpload?.(id)}
               >
@@ -114,7 +116,7 @@ const FileInAttachmentItem = ({
           }
           {
             showDeleteAction && (
-              <ActionButton onClick={() => onRemove?.(id)}>
+              <ActionButton aria-label={`移除 ${name}`} title='移除附件' onClick={() => onRemove?.(id)}>
                 <RiDeleteBinLine className='h-4 w-4' />
               </ActionButton>
             )
